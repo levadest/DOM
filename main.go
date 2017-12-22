@@ -7,9 +7,9 @@ import (
 	"lib/config"
 
 	"net/http"
+	"net/http/httputil"
 	"net/url"
 	"strconv"
-	//"net/http/httputil"
 )
 
 type (
@@ -23,11 +23,11 @@ type (
 	}
 
 	SedoDocument struct {
-		Diadoc         *Documents
-		Spheradoc      *Doc
+		Payload        []byte
 		Compared       bool
 		Id             string
 		Function       string
+		Connector      string
 		Step           int
 		RabbitDocument *RabbitDocumentEntity
 		Sedo           interface{}
@@ -38,10 +38,19 @@ type (
 		FailReason                         string
 		DocumentId                         string
 		EntityId                           string
-		UniversalTransferDocument          string
-		UniversalTransferDocumentSignature string
+		XmlAcceptanceCertificate           string `json:"XmlAcceptanceCertificate,omitempty"`
+		XmlAcceptanceCertificateSignture   string `json:"XmlAcceptanceCertificateSignture,omitempty"`
+		NonformalizedCertificate           string `json:"NonformalizedCertificate,omitempty"`
+		NonformalizedSignture              string `json:"NonformalizedSignture,omitempty"`
+		UniversalTransferDocument          string `json:"UniversalTransferDocument,omitempty"`
+		UniversalTransferDocumentSignature string `json:"UniversalTransferDocumentSignature,omitempty"`
 		Invoices                           []Invoice
 	}
+
+	UniversalTransferDocument          string
+	UniversalTransferDocumentSignature string
+	XmlAcceptanceCertificate           string
+	XmlAcceptanceCertificateSignture   string
 
 	Invoice struct {
 		EntityId                string
@@ -58,7 +67,10 @@ type (
 	}
 )
 
-const StatusCodeSuccess int = 200
+const (
+	StatusCodeSuccess int    = 200
+	CrawlErrorMessage string = "%s method responce code %d, error=%s"
+)
 
 func NewCrawler() *Crawler {
 	return &Crawler{
@@ -90,16 +102,18 @@ func (c *Crawler) Sign(body string) (string, error) {
 func (c *Crawler) Crawl(method, urlString string, body []byte, headers *[]CrawlParam) (respBody []byte, err error) {
 
 	req, err := http.NewRequest(method, urlString, bytes.NewBuffer(body))
+	if err != nil {
+		return nil, err
 
+	}
 	if *headers != nil && len(*headers) > 0 {
 		for _, header := range *headers {
-
 			req.Header.Add(header.Key, header.Value)
 		}
 
 	}
 
-	//log, err := httputil.DumpRequest(req, true)
+	_, err = httputil.DumpRequest(req, true)
 	//fmt.Print(string(log))
 
 	client := &http.Client{}
@@ -114,7 +128,7 @@ func (c *Crawler) Crawl(method, urlString string, body []byte, headers *[]CrawlP
 
 	if resp.StatusCode != StatusCodeSuccess {
 
-		return nil, fmt.Errorf("%s method responce code %d, error=%s", urlString, resp.StatusCode, string(responce))
+		return nil, fmt.Errorf(CrawlErrorMessage, urlString, resp.StatusCode, string(responce))
 	}
 
 	if err != nil {
